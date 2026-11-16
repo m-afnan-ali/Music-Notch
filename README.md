@@ -10,7 +10,7 @@
 **A tiny, notch-style "now playing" widget for Windows.**
 Always on top, buttery animations, and so light you'll forget it's running.
 
-Made by **[@m-afnan-ali](https://github.com/m-afnan-ali)**
+Made by **[USRNME](https://github.com/m-afnan-ali)**
 
 <img src="docs/notch-collapsed.png" width="440" alt="Music Notch, collapsed">
 
@@ -149,9 +149,9 @@ Windows 10 (version 1809 or later) or Windows 11, 64-bit.
 
 ## Author
 
-Designed and built by **[@m-afnan-ali](https://github.com/m-afnan-ali)**.
+Designed and built by **[USRNME](https://github.com/m-afnan-ali)**.
 If you like it, a ⭐ on the repo is appreciated!
 
 ## License
 
-[MIT](LICENSE) © 2026 m-afnan-ali
+[MIT](LICENSE) © 2026 USRNME

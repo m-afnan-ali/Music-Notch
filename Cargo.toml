@@ -2,7 +2,7 @@
 name = "music-notch"
 version = "1.0.0"
 edition = "2021"
-authors = ["m-afnan-ali"]
+authors = ["USRNME"]
 description = "A tiny, notch-style now-playing widget for Windows"
 license = "MIT"
 readme = "README.md"

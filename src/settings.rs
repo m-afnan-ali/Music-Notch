@@ -38,7 +38,7 @@ const LINE: u32 = 0x2a2a30;
 const TEXT: u32 = 0xececf0;
 const SUB: u32 = 0x8a8a96;
 const ACCENT: u32 = 0x4c8dff;
-const AUTHOR_CREDIT: &str = "by m-afnan-ali";
+const AUTHOR_CREDIT: &str = "by USRNME";
 pub const AUTHOR_URL: &str = "https://github.com/m-afnan-ali/Music-Notch";
 
 #[derive(Clone, Copy, PartialEq)]
