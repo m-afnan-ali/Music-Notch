@@ -1,0 +1,59 @@
+[package]
+name = "music-notch"
+version = "1.0.0"
+edition = "2021"
+authors = ["m-afnan-ali"]
+description = "A tiny, notch-style now-playing widget for Windows"
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/m-afnan-ali/Music-Notch"
+keywords = ["windows", "music", "widget", "now-playing", "notch"]
+categories = ["gui"]
+rust-version = "1.84"
+build = "build.rs"
+
+[dependencies]
+windows-numerics = "0.3"
+windows-future = "0.3"
+windows-core = "0.62"
+
+[dependencies.windows]
+version = "0.62"
+features = [
+  "Foundation",
+  "Media_Control",
+  "Storage_Streams",
+  "Win32_Foundation",
+  "Win32_Graphics_Gdi",
+  "Win32_Graphics_Direct2D",
+  "Win32_Graphics_Direct2D_Common",
+  "Win32_Graphics_DirectWrite",
+  "Win32_Graphics_Dxgi_Common",
+  "Win32_Graphics_Imaging",
+  "Win32_Graphics_Dwm",
+  "Win32_Media_Audio",
+  "Win32_Media_Audio_Endpoints",
+  "Win32_System_Com",
+  "Win32_System_Com_StructuredStorage",
+  "Win32_Security",
+  "Win32_System_Variant",
+  "Win32_System_LibraryLoader",
+  "Win32_System_Registry",
+  "Win32_System_Threading",
+  "Win32_System_ProcessStatus",
+  "Win32_System_SystemInformation",
+  "Win32_UI_WindowsAndMessaging",
+  "Win32_UI_Shell",
+  "Win32_UI_HiDpi",
+  "Win32_UI_Input_KeyboardAndMouse",
+]
+
+[build-dependencies]
+embed-resource = "3"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
