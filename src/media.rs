@@ -38,6 +38,8 @@ pub struct Track {
     pub key: u64,
     pub thumb: Option<Arc<Vec<u8>>>,
     pub thumb_id: u64,
+    /// Which app is playing (its AppUserModelID, e.g. "Spotify.exe" or "Chrome").
+    pub app: String,
 }
 
 impl Track {
@@ -296,6 +298,7 @@ fn read(s: &Session, st: &mut State) -> Option<Track> {
         key,
         thumb_id: if st.thumb.is_some() { st.thumb_id } else { 0 },
         thumb: st.thumb.clone(),
+        app,
     })
 }
 

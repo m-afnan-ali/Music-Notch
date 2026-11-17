@@ -23,6 +23,8 @@ pub struct Config {
     pub idle_view: i32,
     /// Expanded timeline: animated waveform (true) or classic bar.
     pub wave_timeline: bool,
+    /// Scrolling over the notch changes the playing app's volume.
+    pub scroll_volume: bool,
 }
 
 impl Default for Config {
@@ -41,6 +43,7 @@ impl Default for Config {
             locked: false,
             idle_view: 0,
             wave_timeline: true,
+            scroll_volume: true,
         }
     }
 }
@@ -72,6 +75,7 @@ impl Config {
                 ("locked", _) => c.locked = b,
                 ("idle_view", Some(n)) => c.idle_view = n.clamp(0, 1),
                 ("wave_timeline", _) => c.wave_timeline = b,
+                ("scroll_volume", _) => c.scroll_volume = b,
                 _ => {}
             }
         }
@@ -85,10 +89,10 @@ impl Config {
         }
         let b = |v: bool| if v { 1 } else { 0 };
         let text = format!(
-            "anchor={}\nx_off={}\ny_off={}\nmonitor={}\nscale={}\nopacity={}\nexpand_on_hover={}\nhide_when_idle={}\nalbum_tint={}\nanimate_bars={}\nlocked={}\nidle_view={}\nwave_timeline={}\n",
+            "anchor={}\nx_off={}\ny_off={}\nmonitor={}\nscale={}\nopacity={}\nexpand_on_hover={}\nhide_when_idle={}\nalbum_tint={}\nanimate_bars={}\nlocked={}\nidle_view={}\nwave_timeline={}\nscroll_volume={}\n",
             self.anchor, self.x_off, self.y_off, self.monitor, self.scale, self.opacity,
             b(self.expand_on_hover), b(self.hide_when_idle), b(self.album_tint),
-            b(self.animate_bars), b(self.locked), self.idle_view, b(self.wave_timeline)
+            b(self.animate_bars), b(self.locked), self.idle_view, b(self.wave_timeline), b(self.scroll_volume)
         );
         let _ = fs::write(p, text);
     }

@@ -76,12 +76,13 @@ pub enum Action {
     OpenAuthor,
 }
 
-const TOGGLES: [(&str, &str); 6] = [
-    ("Expand on hover", "Show cover, progress and controls"),
+const TOGGLES: [(&str, &str); 7] = [
+    ("Expand on hover", "Off: click the notch to play or pause"),
     ("Hide when nothing is playing", "Fade out completely when idle"),
     ("Tint with album colors", "Equalizer and progress take the cover's color"),
     ("Animated equalizer", "Turn off for the lowest possible CPU use"),
     ("Lock position", "With hover off, swipe left/right to skip"),
+    ("Scroll to change volume", "Scroll over the notch to set the app's volume"),
     ("Start with Windows", "Launch quietly when you sign in"),
 ];
 
@@ -106,7 +107,7 @@ pub struct SettingsWin {
     seg: Spring,
     seg_view: Spring,
     seg_tl: Spring,
-    tog: [Spring; 6],
+    tog: [Spring; 7],
     timer: bool,
     last: Instant,
     tracking: bool,
@@ -121,6 +122,7 @@ pub fn toggle_value(cfg: &Config, startup: bool, i: usize) -> bool {
         2 => cfg.album_tint,
         3 => cfg.animate_bars,
         4 => cfg.locked,
+        5 => cfg.scroll_volume,
         _ => startup,
     }
 }
@@ -128,7 +130,7 @@ pub fn toggle_value(cfg: &Config, startup: bool, i: usize) -> bool {
 impl SettingsWin {
     fn blank(hwnd: HWND, cfg: &Config, k: f32) -> Self {
         let startup = crate::config::autostart::enabled();
-        let mut tog = [Spring::new(0.0, 260.0); 6];
+        let mut tog = [Spring::new(0.0, 260.0); 7];
         for (i, t) in tog.iter_mut().enumerate() {
             let v = if toggle_value(cfg, startup, i) { 1.0 } else { 0.0 };
             t.reset(v, v);
@@ -202,7 +204,7 @@ impl SettingsWin {
     pub fn set_startup(&mut self, on: bool) {
         self.startup = on;
         let v = if on { 1.0 } else { 0.0 };
-        self.tog[5].reset(v, v);
+        self.tog[6].reset(v, v);
     }
 
     pub fn invalidate(&self) {
@@ -676,7 +678,7 @@ impl SettingsWin {
         // ---------------- Behavior
         section(self, "BEHAVIOR", rx, 86.0);
         let row_h = 52.0;
-        let card = rect(rx, 106.0, cw, row_h * 6.0 + 8.0);
+        let card = rect(rx, 106.0, cw, row_h * 7.0 + 8.0);
         self.card(rt, b, card);
         for (i, &(name, desc)) in TOGGLES.iter().enumerate() {
             let row = rect(rx + 16.0, card.top + 4.0 + i as f32 * row_h, cw - 32.0, row_h);

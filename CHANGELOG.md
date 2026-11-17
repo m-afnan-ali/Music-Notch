@@ -3,6 +3,15 @@
 All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.1.0] - 2026-11-18
+
+### Added
+- Scroll over the notch to change the playing app's volume: its own slider in the Windows Volume Mixer, so other apps and the system volume stay put. Falls back to the system volume if the app can't be identified. A volume bar shows on the notch while scrolling. Scrolling up also unmutes the app; scrolling down never does. Can be turned off in Settings (*Scroll to change volume*).
+- Click the notch to play or pause when *Expand on hover* is off, with a short "Playing" / "Paused" confirmation on the notch.
+
+### Changed
+- The settings window has a new *Scroll to change volume* switch, and the *Expand on hover* description explains click-to-pause.
+
 ## [1.0.0] - 2026-11-18
 
 First public release.

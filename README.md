@@ -18,6 +18,8 @@ Made by **[USRNME](https://github.com/m-afnan-ali)**
 
 <img src="docs/notch-visualizer.png" width="440" alt="Music Notch, visualizer mode">
 
+<img src="docs/notch-volume.png" width="440" alt="Scrolling over the notch changes the app's volume">
+
 </div>
 
 ---
@@ -29,7 +31,10 @@ Made by **[USRNME](https://github.com/m-afnan-ali)**
 - **Hover to expand**: a bigger cover, previous / play-pause / next controls, and a One UI 9-style timeline where soft, album-colored hills sway with the music.
 - **Visualizer mode**: the collapsed notch can show soft, layered hills that sway with the music instead of the title. Each new song still shows its name for a few seconds first.
 - **Fits wherever you put it**: flush into a top corner, a classic notch along the top, or along the bottom edge. In the lower half of the screen it expands upward, so it never goes off-screen.
-- **Swipe to skip**: with *Lock position* on and *Expand on hover* off, drag the notch left or right to go to the previous or next song.
+- **Control it without opening anything**:
+  - **Scroll** over the notch to turn the playing app's own volume up or down (its slider in the Windows Volume Mixer, so the rest of your PC isn't affected). A volume bar shows on the notch while you scroll.
+  - **Click** the notch to play or pause when *Expand on hover* is off.
+  - **Swipe** left or right to skip when *Lock position* is on and *Expand on hover* is off.
 - **Reacts to real sound**: the bars follow your actual output level, read from Windows' own volume meter. No audio is recorded.
 - **Smooth, physical animations**: spring-based morphing, crossfades between songs, scrolling titles, and colors taken from the album art.
 - **Multi-monitor and high-DPI aware**: pick any display, and the notch stays crisp at any scaling.
@@ -90,6 +95,8 @@ Settings are saved to `%APPDATA%\MusicNotch\settings.ini`.
 |---|---|
 | Hover the notch | Expand it to show the cover, progress and controls |
 | Drag the notch | Move it (it snaps to the top and bottom edges, the corners and the center) |
+| Scroll over the notch | Turn the playing app's volume up / down |
+| Click the notch | Play / pause (when hover-expand is off) |
 | Swipe left / right | Previous / next song (when locked with hover-expand off) |
 | Right-click the notch or tray icon | Settings, snap to center, lock, hide, quit |
 | Left-click the tray icon | Open Settings |

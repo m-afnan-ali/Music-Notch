@@ -9,6 +9,7 @@ mod gfx;
 mod media;
 mod notch;
 mod settings;
+mod volume;
 
 use std::cell::RefCell;
 
@@ -29,8 +30,9 @@ use windows::{
 use config::{autostart, Config};
 use gfx::Gfx;
 use media::Media;
-use notch::Notch;
+use notch::{Hud, Notch};
 use settings::{Action, SettingsWin, Sl};
+use volume::Volume;
 
 const WM_MOUSELEAVE: u32 = 0x02A3;
 const WM_APP_MEDIA: u32 = WM_APP + 1;
@@ -49,6 +51,7 @@ struct App {
     icon: HICON,
     taskbar_created: u32,
     snapshot: Option<String>,
+    volume: Volume,
 }
 
 thread_local! {
@@ -78,7 +81,10 @@ fn main() {
         let _ = SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
         // Single instance.
         let _mutex = CreateMutexW(None, true, w!("Local\\MusicNotch.SingleInstance"));
-        if GetLastError() == ERROR_ALREADY_EXISTS && snapshot.is_none() {
+        if GetLastError() == ERROR_ALREADY_EXISTS
+            && snapshot.is_none()
+            && std::env::var_os("MUSIC_NOTCH_VOLPROBE").is_none()
+        {
             return;
         }
         let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
@@ -157,8 +163,19 @@ fn main() {
         }
 
         APP.with(|c| {
-            *c.borrow_mut() =
-                Some(App { cfg, gfx, notch, settings: None, media, host, hinst, icon, taskbar_created, snapshot })
+            *c.borrow_mut() = Some(App {
+                cfg,
+                gfx,
+                notch,
+                settings: None,
+                media,
+                host,
+                hinst,
+                icon,
+                taskbar_created,
+                snapshot,
+                volume: Volume::new(),
+            })
         });
         with_app(|a| {
             if a.snapshot.is_none() {
@@ -270,6 +287,7 @@ fn apply(a: &mut App, act: Action) {
                 2 => a.cfg.album_tint ^= true,
                 3 => a.cfg.animate_bars ^= true,
                 4 => a.cfg.locked ^= true,
+                5 => a.cfg.scroll_volume ^= true,
                 _ => {
                     autostart::set(!autostart::enabled());
                     if let Some(s) = a.settings.as_mut() {
@@ -420,6 +438,17 @@ unsafe extern "system" fn notch_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARA
         WM_APP_MEDIA => {
             let done = with_app(|a| {
                 let t = a.media.shared.lock().map(|t| t.clone()).unwrap_or_default();
+                // Dev check: which app's volume would scrolling control? (read-only)
+                if t.active && std::env::var_os("MUSIC_NOTCH_VOLPROBE").is_some() {
+                    let r = a.volume.nudge(&t.app, 0.0);
+                    let line = format!(
+                        "app={} result={:?}
+",
+                        t.app, r
+                    );
+                    let _ = std::fs::write(std::env::temp_dir().join("music-notch-volprobe.txt"), line);
+                    PostQuitMessage(0);
+                }
                 a.notch.on_media(&a.gfx, &a.cfg, t);
             });
             if done.is_none() {
@@ -462,6 +491,24 @@ unsafe extern "system" fn notch_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARA
                 a.notch.kick();
             });
             return LRESULT(0);
+        }
+        WM_MOUSEWHEEL => {
+            // Scroll over the notch: change the playing app's volume.
+            let delta = ((wp.0 >> 16) & 0xffff) as i16 as i32;
+            let (sx, sy) = xy(lp); // screen coordinates for wheel messages
+            let handled = with_app(|a| {
+                if !a.cfg.scroll_volume || !a.notch.track.active || !a.notch.hit_screen(&a.cfg, sx, sy) {
+                    return false;
+                }
+                let step = delta as f32 / WHEEL_DELTA as f32 * 0.04; // 4% per notch
+                if let Some((level, _)) = a.volume.nudge(&a.notch.track.app, step) {
+                    a.notch.show_hud(Hud::Volume(level));
+                }
+                true
+            });
+            if handled == Some(true) {
+                return LRESULT(0);
+            }
         }
         WM_RBUTTONUP => {
             if let Some(host) = with_app(|a| a.host) {
@@ -563,7 +610,11 @@ fn snapshot(a: &mut App) {
     let Some(dir) = a.snapshot.clone() else { return };
     let _ = std::fs::create_dir_all(&dir);
     let demo = std::env::args().any(|x| x == "--demo");
+    // Demo screenshots use default settings rather than the user's own (never saved;
+    // the app quits right after).
     if demo {
+        a.cfg = Config::default();
+        a.notch.reposition(&a.cfg);
         a.notch.demo(&a.gfx, &a.cfg);
     }
     let saved_view = a.cfg.idle_view;
@@ -581,6 +632,20 @@ fn snapshot(a: &mut App) {
         }
         a.notch.save_png(&a.gfx, &format!("{dir}\\{name}.png"));
     }
+    // Volume overlay (shown while scrolling over the notch).
+    a.cfg.idle_view = 0;
+    a.notch.force_hover = Some(false);
+    a.notch.update_targets(&a.cfg);
+    a.notch.show_hud(Hud::Volume(0.64));
+    a.notch.settle();
+    a.notch.render(&a.gfx, &a.cfg);
+    a.notch.save_png(&a.gfx, &format!("{dir}\\notch-volume.png"));
+    // Feedback after clicking a non-expanding notch to pause.
+    a.notch.show_hud(Hud::Play(false));
+    a.notch.settle();
+    a.notch.render(&a.gfx, &a.cfg);
+    a.notch.save_png(&a.gfx, &format!("{dir}\\notch-paused.png"));
+    a.notch.clear_hud();
     a.cfg.idle_view = saved_view;
     // Demo screenshots show default options rather than the user's own settings.
     let shown_cfg = if demo { Config::default() } else { a.cfg.clone() };

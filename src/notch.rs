@@ -75,6 +75,15 @@ impl Layouts {
     }
 }
 
+/// A short overlay shown over the notch's content after an action.
+#[derive(Clone, Copy)]
+pub enum Hud {
+    /// Volume level (0..1) after scrolling.
+    Volume(f32),
+    /// Play state after a click: true = now playing.
+    Play(bool),
+}
+
 struct Drag {
     cursor: POINT,
     /// Screen position of the collapsed pill's top-left corner at drag start.
@@ -131,6 +140,10 @@ pub struct Notch {
     text_band: D2D_RECT_F,
     // swipe-to-skip (locked + no hover-expand)
     swipe: Spring,
+    // overlay (volume level / play-pause feedback)
+    hud: Spring,
+    hud_kind: Hud,
+    hud_until: Option<Instant>,
     swiping: bool,
     swipe_dx: f32,
     // drawing origin of the bound sub-rectangle, and the current content shift
@@ -209,6 +222,9 @@ impl Notch {
             text_rect: D2D_RECT_F::default(),
             text_band: D2D_RECT_F::default(),
             swipe: Spring::new(0.0, 240.0),
+            hud: Spring::new(0.0, 200.0),
+            hud_kind: Hud::Volume(0.0),
+            hud_until: None,
             swiping: false,
             swipe_dx: 0.0,
             org: (0.0, 0.0),
@@ -355,6 +371,7 @@ impl Notch {
             &mut self.viz,
             &mut self.swipe,
             &mut self.cover_fade,
+            &mut self.hud,
         ] {
             s.snap();
         }
@@ -460,6 +477,14 @@ impl Notch {
         }
 
         let mut slow = false;
+        if let Some(t) = self.hud_until {
+            if now >= t {
+                self.hud_until = None;
+                self.hud.target = 0.0;
+            } else {
+                slow = true; // wake up to hide it
+            }
+        }
         if let Some(t) = self.name_until {
             if now >= t {
                 self.name_until = None;
@@ -481,6 +506,7 @@ impl Notch {
             &mut self.viz,
             &mut self.swipe,
             &mut self.cover_fade,
+            &mut self.hud,
         ] {
             fast |= s.step(dt);
         }
@@ -541,7 +567,7 @@ impl Notch {
         }
 
         // When only the bars or the scrolling title move, repaint just those pixels.
-        let partial = !fast && (eq_anim || marquee_fast) && self.expand.value < 0.01;
+        let partial = !fast && (eq_anim || marquee_fast) && self.expand.value < 0.01 && self.hud.value < 0.001;
         self.partial_viz = self.viz.value > 0.5;
         self.partial_text = !self.partial_viz && marquee_fast;
         self.render_frame(gfx, cfg, partial);
@@ -918,7 +944,8 @@ impl Notch {
         let eq_w = 16.0;
 
         // --- collapsed: song name (+ mini equalizer) or the visualizer
-        let a_col = clamp01(1.0 - t * 2.2) * pres;
+        let hud = ease(self.hud.value);
+        let a_col = clamp01(1.0 - t * 2.2) * pres * (1.0 - hud);
         let vz = ease(self.viz.value);
         let cyc = (r.top + r.bottom) / 2.0;
         self.eq_rect = rect(right - eq_w, cyc - 7.0, eq_w, 14.0);
@@ -938,17 +965,22 @@ impl Notch {
             }
         }
 
+        if hud > 0.002 && t < 0.5 {
+            let area = D2D_RECT_F { left: tx, top: r.top, right, bottom: r.bottom };
+            self.draw_hud(rt, gfx, &b, area, clamp01(1.0 - t * 2.2) * pres * hud);
+        }
+
         // --- expanded: title, artist, controls, timeline
         let a_exp = clamp01(t * 2.0 - 1.0) * pres;
         if a_exp > 0.002 {
             let slide = (1.0 - a_exp) * 6.0;
             let top = r.top + 18.0 + slide;
             if let Some(l) = &self.lay.exp_title {
-                b.SetColor(&hex(0xffffff, a_exp));
+                b.SetColor(&hex(0xffffff, a_exp * (1.0 - hud)));
                 rt.DrawTextLayout(v2(tx, top + 7.0), &l.l, &b, D2D1_DRAW_TEXT_OPTIONS_ENABLE_COLOR_FONT);
             }
             if let Some(l) = &self.lay.exp_artist {
-                b.SetColor(&hex(0xffffff, a_exp * 0.58));
+                b.SetColor(&hex(0xffffff, a_exp * 0.58 * (1.0 - hud)));
                 rt.DrawTextLayout(v2(tx, top + 31.0), &l.l, &b, D2D1_DRAW_TEXT_OPTIONS_ENABLE_COLOR_FONT);
             }
 
@@ -978,6 +1010,10 @@ impl Notch {
                 self.draw_icon(rt, gfx, &b, cmd, br);
             }
             self.buttons = Some(btns);
+            if hud > 0.002 {
+                let area = D2D_RECT_F { left: tx, top: top + 4.0, right: bx - 10.0, bottom: top + 54.0 };
+                self.draw_hud(rt, gfx, &b, area, a_exp * hud);
+            }
 
             // timeline row
             let cy = r.bottom - 24.0 + slide * 0.5;
@@ -1216,6 +1252,82 @@ impl Notch {
         rt.DrawEllipse(&e, b, 2.5, None);
     }
 
+    /// Volume bar or play/pause feedback, vertically centered in `area`.
+    unsafe fn draw_hud(
+        &self,
+        rt: &ID2D1RenderTarget,
+        gfx: &Gfx,
+        b: &ID2D1SolidColorBrush,
+        area: D2D_RECT_F,
+        alpha: f32,
+    ) {
+        let Some(f) = self.fonts.as_ref() else { return };
+        let cy = (area.top + area.bottom) / 2.0;
+        match self.hud_kind {
+            Hud::Volume(level) => {
+                // speaker
+                let x = area.left + 2.0;
+                b.SetColor(&hex(0xffffff, alpha));
+                rt.FillRoundedRectangle(&rr(rect(x, cy - 3.0, 4.0, 6.0), 1.0), b);
+                if let Some(g) = triangle(&gfx.d2d, v2(x + 3.0, cy - 3.0), v2(x + 9.0, cy - 7.0), v2(x + 9.0, cy + 7.0))
+                {
+                    rt.FillGeometry(&g, b, None);
+                }
+                if let Some(g) = triangle(&gfx.d2d, v2(x + 3.0, cy - 3.0), v2(x + 9.0, cy + 7.0), v2(x + 3.0, cy + 3.0))
+                {
+                    rt.FillGeometry(&g, b, None);
+                }
+                // bar
+                let pct = format!("{}%", (level * 100.0).round() as i32);
+                let label = gfx.layout(&pct, &f.col_b, 80.0, 30.0);
+                let lw = label.as_ref().map_or(30.0, |l| l.w);
+                let (x0, x1) = (x + 18.0, area.right - lw - 10.0);
+                if x1 > x0 {
+                    let bh = 5.0;
+                    b.SetColor(&hex(0xffffff, alpha * 0.18));
+                    rt.FillRoundedRectangle(&rr(rect(x0, cy - bh / 2.0, x1 - x0, bh), bh / 2.0), b);
+                    b.SetColor(&rgb(self.accent(), alpha));
+                    let fw = ((x1 - x0) * level).max(bh);
+                    rt.FillRoundedRectangle(&rr(rect(x0, cy - bh / 2.0, fw, bh), bh / 2.0), b);
+                }
+                if let Some(l) = label {
+                    b.SetColor(&hex(0xffffff, alpha));
+                    rt.DrawTextLayout(v2(area.right - l.w, cy - l.h / 2.0), &l.l, b, D2D1_DRAW_TEXT_OPTIONS_NONE);
+                }
+            }
+            Hud::Play(playing) => {
+                // Same icon the expanded controls use, with a word next to it.
+                let icon = rect(area.left, cy - 11.0, 22.0, 22.0);
+                b.SetColor(&hex(0xffffff, alpha));
+                self.draw_icon_for(rt, gfx, b, Cmd::Toggle, icon, playing);
+                let word = if playing { "Playing" } else { "Paused" };
+                if let Some(l) = gfx.layout(word, &f.col_b, 200.0, 30.0) {
+                    rt.DrawTextLayout(v2(icon.right + 8.0, cy - l.h / 2.0), &l.l, b, D2D1_DRAW_TEXT_OPTIONS_NONE);
+                }
+            }
+        }
+    }
+
+    /// Shows the overlay for a moment.
+    pub fn show_hud(&mut self, kind: Hud) {
+        self.hud_kind = kind;
+        self.hud.target = 1.0;
+        let secs = if matches!(kind, Hud::Volume(_)) { 1.2 } else { 0.9 };
+        self.hud_until = Some(Instant::now() + std::time::Duration::from_secs_f32(secs));
+        self.kick();
+    }
+
+    pub fn clear_hud(&mut self) {
+        self.hud.reset(0.0, 0.0);
+        self.hud_until = None;
+    }
+
+    /// Whether a screen point is over the visible pill (for scroll-to-volume).
+    pub fn hit_screen(&self, cfg: &Config, sx: i32, sy: i32) -> bool {
+        let (lx, ly) = ((sx - self.pos.0) as f32 / self.k, (sy - self.pos.1) as f32 / self.k);
+        self.pill_contains(cfg, lx, ly)
+    }
+
     unsafe fn draw_eq(&self, rt: &ID2D1RenderTarget, b: &ID2D1SolidColorBrush, r: D2D_RECT_F, alpha: f32) {
         b.SetColor(&rgb(self.accent(), alpha));
         let n = 4;
@@ -1271,11 +1383,23 @@ impl Notch {
     }
 
     unsafe fn draw_icon(&self, rt: &ID2D1RenderTarget, gfx: &Gfx, b: &ID2D1SolidColorBrush, cmd: Cmd, br: D2D_RECT_F) {
+        self.draw_icon_for(rt, gfx, b, cmd, br, self.track.playing)
+    }
+
+    unsafe fn draw_icon_for(
+        &self,
+        rt: &ID2D1RenderTarget,
+        gfx: &Gfx,
+        b: &ID2D1SolidColorBrush,
+        cmd: Cmd,
+        br: D2D_RECT_F,
+        playing: bool,
+    ) {
         let (cx, cy) = ((br.left + br.right) / 2.0, (br.top + br.bottom) / 2.0);
         match cmd {
             Cmd::Toggle => {
                 let u = 8.5;
-                if self.track.playing {
+                if playing {
                     let bw = u * 0.34;
                     for x in [cx - u * 0.5, cx + u * 0.5 - bw] {
                         rt.FillRoundedRectangle(&rr(rect(x, cy - u * 0.62, bw, u * 1.24), bw / 3.0), b);
@@ -1408,6 +1532,7 @@ impl Notch {
                 }
             }
         }
+        let swiped = self.swiping;
         if self.swiping {
             self.swiping = false;
             self.swipe.target = 0.0; // spring back
@@ -1419,6 +1544,16 @@ impl Notch {
             self.swipe_dx = 0.0;
         }
         let dragged = self.dragging;
+        // A plain click on a notch that doesn't expand toggles play/pause.
+        let clicked = self.drag.is_some() && !dragged && !swiped && cmd.is_none();
+        if clicked && !cfg.expand_on_hover && self.track.active && self.pill_contains(cfg, lx, ly) {
+            cmd = Some(Cmd::Toggle);
+            let pos = self.track.position();
+            self.track.pos = pos;
+            self.track.at = Some(Instant::now());
+            self.track.playing = !self.track.playing;
+            self.show_hud(Hud::Play(self.track.playing));
+        }
         self.drag = None;
         self.dragging = false;
         self.update_targets(cfg);
@@ -1498,6 +1633,7 @@ impl Notch {
             key: 0xdead_beef,
             thumb: None,
             thumb_id: 0,
+            app: String::new(),
         };
         self.on_media(gfx, cfg, t);
         let n = 168u32;
