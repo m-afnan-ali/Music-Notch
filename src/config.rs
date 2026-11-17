@@ -95,33 +95,97 @@ impl Config {
 }
 
 /// "Start with Windows" via the per-user Run key (no admin needed).
+///
+/// Windows also keeps an approval flag per startup entry (what the Startup
+/// Apps page and Task Manager toggle). Recent Windows builds skip Run entries
+/// that have no flag at all, so we write one, exactly as Task Manager does.
 pub mod autostart {
     use windows::core::{w, HSTRING, PCWSTR};
     use windows::Win32::System::Registry::*;
 
     const RUN: PCWSTR = w!("Software\\Microsoft\\Windows\\CurrentVersion\\Run");
+    const APPROVED: PCWSTR = w!("Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run");
     const NAME: PCWSTR = w!("MusicNotch");
 
-    pub fn enabled() -> bool {
+    fn has_run_entry() -> bool {
         unsafe { RegGetValueW(HKEY_CURRENT_USER, RUN, NAME, RRF_RT_REG_SZ, None, None, None).is_ok() }
     }
 
-    pub fn set(on: bool) {
+    /// `Some(true)` = approved, `Some(false)` = disabled by the user in
+    /// Startup Apps / Task Manager, `None` = no flag written yet.
+    fn approval() -> Option<bool> {
+        let mut buf = [0u8; 12];
+        let mut size = buf.len() as u32;
+        let ok = unsafe {
+            RegGetValueW(
+                HKEY_CURRENT_USER,
+                APPROVED,
+                NAME,
+                RRF_RT_REG_BINARY,
+                None,
+                Some(buf.as_mut_ptr() as *mut _),
+                Some(&mut size),
+            )
+            .is_ok()
+        };
+        // Low bit set (03, 07...) means disabled; 02/06 mean enabled.
+        (ok && size > 0).then(|| buf[0] & 1 == 0)
+    }
+
+    fn write_approval() {
+        let flag: [u8; 12] = [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         unsafe {
-            if on {
-                let Ok(exe) = std::env::current_exe() else { return };
-                let value = HSTRING::from(format!("\"{}\"", exe.display()));
-                let bytes = (value.len() + 1) * 2;
-                let _ = RegSetKeyValueW(
-                    HKEY_CURRENT_USER,
-                    RUN,
-                    NAME,
-                    REG_SZ.0,
-                    Some(value.as_ptr() as *const _),
-                    bytes as u32,
-                );
-            } else {
+            let _ = RegSetKeyValueW(
+                HKEY_CURRENT_USER,
+                APPROVED,
+                NAME,
+                REG_BINARY.0,
+                Some(flag.as_ptr() as *const _),
+                flag.len() as u32,
+            );
+        }
+    }
+
+    fn write_run_entry() {
+        let Ok(exe) = std::env::current_exe() else { return };
+        let value = HSTRING::from(format!("\"{}\"", exe.display()));
+        let bytes = (value.len() + 1) * 2;
+        unsafe {
+            let _ =
+                RegSetKeyValueW(HKEY_CURRENT_USER, RUN, NAME, REG_SZ.0, Some(value.as_ptr() as *const _), bytes as u32);
+        }
+    }
+
+    /// On only if the entry exists and the user hasn't disabled it in Windows.
+    pub fn enabled() -> bool {
+        has_run_entry() && approval() != Some(false)
+    }
+
+    pub fn set(on: bool) {
+        if on {
+            write_run_entry();
+            write_approval();
+        } else {
+            unsafe {
                 let _ = RegDeleteKeyValueW(HKEY_CURRENT_USER, RUN, NAME);
+                let _ = RegDeleteKeyValueW(HKEY_CURRENT_USER, APPROVED, NAME);
+            }
+        }
+    }
+
+    /// Called at launch: if startup is on, keep the entry pointing at this exe
+    /// (in case it was moved) and add the approval flag older versions forgot.
+    /// A "disabled" choice made in Task Manager is left alone.
+    pub fn repair() {
+        if !has_run_entry() {
+            return;
+        }
+        match approval() {
+            Some(false) => {}
+            Some(true) => write_run_entry(),
+            None => {
+                write_run_entry();
+                write_approval();
             }
         }
     }

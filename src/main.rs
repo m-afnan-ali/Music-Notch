@@ -140,6 +140,9 @@ fn main() {
 
         let Ok(gfx) = Gfx::new() else { return };
         let cfg = Config::load();
+        if snapshot.is_none() {
+            autostart::repair();
+        }
         let media = media::start(hwnd, WM_APP_MEDIA);
         let mut notch = Notch::new(hwnd);
         notch.reposition(&cfg);
