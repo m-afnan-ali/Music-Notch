@@ -3,7 +3,7 @@
 All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
-## [1.0.0] - 2026-11-16
+## [1.0.0] - 2026-11-18
 
 First public release.
 
@@ -17,6 +17,10 @@ First public release.
 - Swipe left or right to skip when the notch is locked and hover-expand is off.
 - Custom settings window: position, monitor, size, opacity, collapsed view, timeline style, behavior toggles, and start with Windows.
 - System tray icon with quick actions, restored automatically if Explorer restarts.
+- Installer: per-user install (no admin), Start menu shortcut, optional desktop shortcut, optional start at sign-in, and an uninstaller in Settings → Apps that can also remove your settings. A portable exe is published alongside it.
+
+### Fixed
+- "Start with Windows" now writes the Startup Apps approval flag, so Windows no longer skips Music Notch at sign-in, and a "disabled" choice in Task Manager is respected.
 
 ### Performance
 - Native Rust + Win32 + software Direct2D: about 11.5 MB of memory, and a ~350 KB executable.

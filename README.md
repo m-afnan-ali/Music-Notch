@@ -72,13 +72,17 @@ Settings are saved to `%APPDATA%\MusicNotch\settings.ini`.
 
 ## Install
 
-1. Download `music-notch.exe` from the [latest release](https://github.com/m-afnan-ali/Music-Notch/releases/latest).
-2. Run it. The notch appears at the top of your screen, and an icon appears in the system tray.
-3. Optional: open Settings and turn on **Start with Windows**.
+1. Download **`Music-Notch-Setup-<version>.exe`** from the [latest release](https://github.com/m-afnan-ali/Music-Notch/releases/latest).
+2. Run it. No admin rights are needed: it installs just for you, adds Music Notch to the Start menu, and can start it when you sign in.
+3. The notch appears at the top of your screen, and an icon appears in the system tray.
 
 > **Windows SmartScreen** may warn you the first time, because the app isn't code-signed. Click **More info → Run anyway**.
 
-To uninstall, turn off *Start with Windows*, quit from the tray menu, then delete the `.exe` (and optionally `%APPDATA%\MusicNotch`).
+**Updating:** run the newer setup. It replaces the old version and keeps your settings.
+
+**Uninstalling:** *Settings → Apps → Installed apps → Music Notch → Uninstall*. It removes the app, its shortcuts and its startup entry, and asks whether to keep your settings.
+
+**Portable:** each release also has `Music-Notch-<version>-portable.exe`, a single file you can run from anywhere without installing.
 
 ## Usage
 
@@ -122,6 +126,10 @@ target/release/music-notch.exe --snapshot docs --demo
 target/release/music-notch.exe --settings
 ```
 
+To build the installer too, install [Inno Setup 6](https://jrsoftware.org/isinfo.php) and run
+`iscc /DAppVersion=1.0.0 /DAppVersionNum=1.0.0.0 installer\music-notch.iss` (output in `target\installer`).
+Releases are built automatically. See [RELEASING.md](RELEASING.md).
+
 `tools/make_icon.py` regenerates `assets/icon.ico` (it needs `pip install PySide6-Essentials`).
 
 ### Project layout
@@ -136,7 +144,8 @@ src/
   gfx.rs       Direct2D / DirectWrite / WIC helpers, colors, monitors
   anim.rs      spring physics
   config.rs    settings file and "start with Windows"
-assets/        icon, manifest, version resource
+assets/        icon, manifest, version resource template
+installer/     Inno Setup script for the installer
 docs/          README screenshots (generated with --snapshot --demo)
 tools/         icon generator
 ```

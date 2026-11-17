@@ -111,6 +111,31 @@ pub mod autostart {
         unsafe { RegGetValueW(HKEY_CURRENT_USER, RUN, NAME, RRF_RT_REG_SZ, None, None, None).is_ok() }
     }
 
+    /// Whether the exe the startup entry launches still exists.
+    fn run_target_exists() -> bool {
+        let mut buf = [0u16; 1024];
+        let mut size = (buf.len() * 2) as u32;
+        let ok = unsafe {
+            RegGetValueW(
+                HKEY_CURRENT_USER,
+                RUN,
+                NAME,
+                RRF_RT_REG_SZ,
+                None,
+                Some(buf.as_mut_ptr() as *mut _),
+                Some(&mut size),
+            )
+            .is_ok()
+        };
+        if !ok {
+            return false;
+        }
+        let end = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
+        let cmd = String::from_utf16_lossy(&buf[..end]);
+        let path = cmd.trim().trim_start_matches('"').split('"').next().unwrap_or("").trim();
+        !path.is_empty() && std::path::Path::new(path).exists()
+    }
+
     /// `Some(true)` = approved, `Some(false)` = disabled by the user in
     /// Startup Apps / Task Manager, `None` = no flag written yet.
     fn approval() -> Option<bool> {
@@ -173,20 +198,19 @@ pub mod autostart {
         }
     }
 
-    /// Called at launch: if startup is on, keep the entry pointing at this exe
-    /// (in case it was moved) and add the approval flag older versions forgot.
-    /// A "disabled" choice made in Task Manager is left alone.
+    /// Called at launch: if startup is on, add the approval flag older versions
+    /// forgot, and if the exe it points to is gone (moved or uninstalled),
+    /// point it at this one. A working entry - e.g. the installed copy - is
+    /// never hijacked by another copy, and a Task Manager "disabled" is kept.
     pub fn repair() {
-        if !has_run_entry() {
+        if !has_run_entry() || approval() == Some(false) {
             return;
         }
-        match approval() {
-            Some(false) => {}
-            Some(true) => write_run_entry(),
-            None => {
-                write_run_entry();
-                write_approval();
-            }
+        if !run_target_exists() {
+            write_run_entry();
+        }
+        if approval().is_none() {
+            write_approval();
         }
     }
 }
