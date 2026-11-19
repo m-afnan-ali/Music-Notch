@@ -175,6 +175,10 @@ pub struct Notch {
     pub dragging: bool,
     buttons: Option<[D2D_RECT_F; 3]>,
     pub hidden: bool,
+    /// A fullscreen app covers our monitor: stay out of its way entirely.
+    suppressed: bool,
+    /// Whether the window is actually shown (ShowWindow state).
+    win_shown: bool,
     anim_bars: bool,
 }
 
@@ -253,6 +257,8 @@ impl Notch {
             dragging: false,
             buttons: None,
             hidden: false,
+            suppressed: false,
+            win_shown: false,
             anim_bars: true,
         }
     }
@@ -460,6 +466,13 @@ impl Notch {
     }
 
     pub fn tick(&mut self, gfx: &Gfx, cfg: &Config) {
+        if self.suppressed {
+            unsafe {
+                let _ = KillTimer(Some(self.hwnd), T_ANIM);
+            }
+            self.timer_ms = 0;
+            return;
+        }
         let now = Instant::now();
         let raw = (now - self.last).as_secs_f32();
         self.last = now;
@@ -662,7 +675,7 @@ impl Notch {
     }
 
     fn render_frame(&mut self, gfx: &Gfx, cfg: &Config, partial: bool) {
-        if self.hidden || !self.ensure_surface() {
+        if self.hidden || self.suppressed || !self.ensure_surface() {
             return;
         }
         self.ensure_fonts(gfx);
@@ -765,6 +778,48 @@ impl Notch {
                 Some(&blend),
                 ULW_ALPHA,
             );
+            self.sync_shown();
+        }
+    }
+
+    /// Shown only when it has something to show. A fully faded-out notch is
+    /// really hidden, not just transparent: an invisible always-on-top window
+    /// still sits over fullscreen games.
+    fn want_shown(&self) -> bool {
+        let faded_out = self.vis.target == 0.0 && self.vis.value <= 0.003;
+        !self.hidden && !self.suppressed && !faded_out
+    }
+
+    pub fn sync_shown(&mut self) {
+        let want = self.want_shown();
+        if want != self.win_shown {
+            unsafe {
+                let _ = ShowWindow(self.hwnd, if want { SW_SHOWNOACTIVATE } else { SW_HIDE });
+            }
+            self.win_shown = want;
+        }
+    }
+
+    pub fn is_shown(&self) -> bool {
+        self.win_shown
+    }
+
+    /// Steps aside for (or comes back after) a fullscreen app.
+    pub fn set_suppressed(&mut self, on: bool, gfx: &Gfx, cfg: &Config) {
+        if on == self.suppressed {
+            return;
+        }
+        self.suppressed = on;
+        if on {
+            unsafe {
+                let _ = KillTimer(Some(self.hwnd), T_ANIM);
+            }
+            self.timer_ms = 0;
+            self.sync_shown();
+        } else {
+            self.render(gfx, cfg);
+            self.sync_shown();
+            self.kick();
         }
     }
 

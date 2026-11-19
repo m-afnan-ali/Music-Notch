@@ -38,7 +38,7 @@ Made by **[USRNME](https://github.com/m-afnan-ali)**
 - **Reacts to real sound**: the bars follow your actual output level, read from Windows' own volume meter. No audio is recorded.
 - **Smooth, physical animations**: spring-based morphing, crossfades between songs, scrolling titles, and colors taken from the album art.
 - **Multi-monitor and high-DPI aware**: pick any display, and the notch stays crisp at any scaling.
-- **Stays out of your way**: it never steals focus, and clicks pass straight through everything around the pill.
+- **Stays out of your way**: it never steals focus, clicks pass straight through everything around the pill, and it steps aside for fullscreen games and videos.
 - **Single 350 KB `.exe`**: nothing to install, no runtime needed.
 
 ## Featherweight by design
@@ -110,6 +110,7 @@ Music Notch never connects to the internet and has no telemetry. It only reads w
 - **Nothing shows up for my player**: the player has to publish to the Windows media controls, the same panel that appears under the volume flyout. Most do. For browsers, the tab has to be playing.
 - **The cover is missing for a moment after skipping**: some players publish the new title before the new art. The notch keeps checking for a few seconds and fades the art in when it arrives.
 - **It disappeared**: right-click the tray icon and choose *Show notch*, or *Snap to top center*.
+- **A fullscreen game stutters, goes black or freezes**: make sure you're on v1.1.1 or newer and *Hide during fullscreen* is on (the default). The notch then steps aside while any fullscreen game or video covers its screen.
 - **I want it even lighter**: turn off *Animated equalizer*. The notch then only redraws when something changes.
 
 ## Build from source

@@ -5,6 +5,7 @@
 mod anim;
 mod audio;
 mod config;
+mod fullscreen;
 mod gfx;
 mod media;
 mod notch;
@@ -37,8 +38,11 @@ use volume::Volume;
 const WM_MOUSELEAVE: u32 = 0x02A3;
 const WM_APP_MEDIA: u32 = WM_APP + 1;
 const WM_APP_TRAY: u32 = WM_APP + 2;
+const WM_APP_FOREGROUND: u32 = WM_APP + 3;
 const T_TOPMOST: usize = 2;
 const T_SNAPSHOT: usize = 4;
+/// Quick re-checks after the active window changes (games go fullscreen a moment later).
+const T_FSCHECK: usize = 5;
 
 struct App {
     cfg: Config,
@@ -52,6 +56,7 @@ struct App {
     taskbar_created: u32,
     snapshot: Option<String>,
     volume: Volume,
+    fs_checks: u32,
 }
 
 thread_local! {
@@ -154,8 +159,9 @@ fn main() {
         notch.reposition(&cfg);
         notch.update_targets(&cfg);
         notch.render(&gfx, &cfg);
-        let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
-        SetTimer(Some(hwnd), T_TOPMOST, 2000, None);
+        notch.sync_shown();
+        SetTimer(Some(hwnd), T_TOPMOST, 1000, None);
+        fullscreen::watch_foreground(hwnd, WM_APP_FOREGROUND);
 
         let taskbar_created = RegisterWindowMessageW(w!("TaskbarCreated"));
         if snapshot.is_some() {
@@ -175,6 +181,7 @@ fn main() {
                 taskbar_created,
                 snapshot,
                 volume: Volume::new(),
+                fs_checks: 0,
             })
         });
         with_app(|a| {
@@ -288,6 +295,7 @@ fn apply(a: &mut App, act: Action) {
                 3 => a.cfg.animate_bars ^= true,
                 4 => a.cfg.locked ^= true,
                 5 => a.cfg.scroll_volume ^= true,
+                6 => a.cfg.hide_fullscreen ^= true,
                 _ => {
                     autostart::set(!autostart::enabled());
                     if let Some(s) = a.settings.as_mut() {
@@ -334,6 +342,12 @@ fn apply(a: &mut App, act: Action) {
     refresh_notch(a);
 }
 
+/// Hides the notch while a fullscreen app covers its monitor.
+fn check_fullscreen(a: &mut App) {
+    let on = a.cfg.hide_fullscreen && fullscreen::active_on(&gfx::pick_monitor(&a.cfg).rect);
+    a.notch.set_suppressed(on, &a.gfx, &a.cfg);
+}
+
 fn refresh_notch(a: &mut App) {
     a.notch.reposition(&a.cfg);
     a.notch.update_targets(&a.cfg);
@@ -371,8 +385,8 @@ unsafe fn show_menu(host: HWND) {
         }
         4 => {
             a.notch.hidden ^= true;
-            let _ = ShowWindow(a.notch.hwnd, if a.notch.hidden { SW_HIDE } else { SW_SHOWNOACTIVATE });
             refresh_notch(a);
+            a.notch.sync_shown();
         }
         9 => PostQuitMessage(0),
         _ => {}
@@ -418,7 +432,9 @@ unsafe extern "system" fn notch_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARA
                     }
                 }
                 T_TOPMOST => {
-                    if !a.notch.hidden {
+                    // Never push above a fullscreen game: check first.
+                    check_fullscreen(a);
+                    if a.notch.is_shown() {
                         let _ = SetWindowPos(
                             hwnd,
                             Some(HWND_TOPMOST),
@@ -431,7 +447,23 @@ unsafe extern "system" fn notch_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARA
                     }
                 }
                 T_SNAPSHOT => snapshot(a),
+                T_FSCHECK => {
+                    check_fullscreen(a);
+                    a.fs_checks = a.fs_checks.saturating_sub(1);
+                    if a.fs_checks == 0 {
+                        let _ = KillTimer(Some(hwnd), T_FSCHECK);
+                    }
+                }
                 _ => {}
+            });
+            return LRESULT(0);
+        }
+        WM_APP_FOREGROUND => {
+            with_app(|a| {
+                check_fullscreen(a);
+                // Re-check every 250 ms for 3 s while the new window settles.
+                a.fs_checks = 12;
+                SetTimer(Some(hwnd), T_FSCHECK, 250, None);
             });
             return LRESULT(0);
         }

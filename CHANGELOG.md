@@ -3,6 +3,15 @@
 All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.1.1] - 2026-11-19
+
+### Fixed
+- Fullscreen games could hang or go black with Music Notch running (for example EA SPORTS FC 26 "stopped responding"). The notch re-asserted "always on top" every 2 seconds, which kept knocking fullscreen games out of their fullscreen mode. Now, while a fullscreen game or video covers the notch's screen, the notch steps aside completely: it hides, stops staying on top and stops animating, then comes back when you leave fullscreen. Maximized windows don't count.
+- With *Hide when nothing is playing* on, the faded-out notch is now really hidden instead of an invisible window left on top of everything.
+
+### Added
+- *Hide during fullscreen* setting (on by default).
+
 ## [1.1.0] - 2026-11-18
 
 ### Added

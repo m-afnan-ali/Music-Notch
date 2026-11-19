@@ -25,6 +25,8 @@ pub struct Config {
     pub wave_timeline: bool,
     /// Scrolling over the notch changes the playing app's volume.
     pub scroll_volume: bool,
+    /// Step aside (hide, stop staying on top) while a fullscreen app covers the notch.
+    pub hide_fullscreen: bool,
 }
 
 impl Default for Config {
@@ -44,6 +46,7 @@ impl Default for Config {
             idle_view: 0,
             wave_timeline: true,
             scroll_volume: true,
+            hide_fullscreen: true,
         }
     }
 }
@@ -76,6 +79,7 @@ impl Config {
                 ("idle_view", Some(n)) => c.idle_view = n.clamp(0, 1),
                 ("wave_timeline", _) => c.wave_timeline = b,
                 ("scroll_volume", _) => c.scroll_volume = b,
+                ("hide_fullscreen", _) => c.hide_fullscreen = b,
                 _ => {}
             }
         }
@@ -89,10 +93,10 @@ impl Config {
         }
         let b = |v: bool| if v { 1 } else { 0 };
         let text = format!(
-            "anchor={}\nx_off={}\ny_off={}\nmonitor={}\nscale={}\nopacity={}\nexpand_on_hover={}\nhide_when_idle={}\nalbum_tint={}\nanimate_bars={}\nlocked={}\nidle_view={}\nwave_timeline={}\nscroll_volume={}\n",
+            "anchor={}\nx_off={}\ny_off={}\nmonitor={}\nscale={}\nopacity={}\nexpand_on_hover={}\nhide_when_idle={}\nalbum_tint={}\nanimate_bars={}\nlocked={}\nidle_view={}\nwave_timeline={}\nscroll_volume={}\nhide_fullscreen={}\n",
             self.anchor, self.x_off, self.y_off, self.monitor, self.scale, self.opacity,
             b(self.expand_on_hover), b(self.hide_when_idle), b(self.album_tint),
-            b(self.animate_bars), b(self.locked), self.idle_view, b(self.wave_timeline), b(self.scroll_volume)
+            b(self.animate_bars), b(self.locked), self.idle_view, b(self.wave_timeline), b(self.scroll_volume), b(self.hide_fullscreen)
         );
         let _ = fs::write(p, text);
     }
